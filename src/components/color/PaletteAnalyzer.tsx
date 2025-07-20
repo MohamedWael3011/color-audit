@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   getContrastRatio,
   evaluateContrast,
@@ -136,7 +136,7 @@ const PaletteAnalyzer: React.FC<PaletteAnalyzerProps> = ({
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
-  const analyzeColors = () => {
+  const analyzeColors = useCallback(() => {
     // Calculate contrast between each pair of colors
     const contrastScores = [];
 
@@ -313,7 +313,7 @@ const PaletteAnalyzer: React.FC<PaletteAnalyzerProps> = ({
       recommendations,
       improvedPalette,
     });
-  };
+  }, [palette]);
 
   useEffect(() => {
     if (palette.length === 0) return;
@@ -327,7 +327,7 @@ const PaletteAnalyzer: React.FC<PaletteAnalyzerProps> = ({
     }, 800);
 
     return () => clearTimeout(timeoutId);
-  }, [palette]);
+  }, [palette, analyzeColors]);
 
   if (isAnalyzing) {
     return (

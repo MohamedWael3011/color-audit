@@ -7,7 +7,6 @@ import ThemeToggle from "../ui/ThemeToggle";
 import {
   generateQualityRandomPalette,
   generateDarkVariant,
-  generateLightVariant,
 } from "../../lib/utils";
 import { useTheme } from "../../contexts/ThemeContext";
 
@@ -30,7 +29,7 @@ const PaletteAnalyzerDemoPage: React.FC = () => {
 
   const activeVariant = isDarkMode ? "dark" : "light";
 
-  // Update variants when palette changes (only when not in variant mode to avoid conflicts)
+  // Update variants when base palette changes
   useEffect(() => {
     setPaletteVariants({
       light: palette,
@@ -40,30 +39,10 @@ const PaletteAnalyzerDemoPage: React.FC = () => {
 
   const currentPalette = paletteVariants[activeVariant];
 
-  // Wrapper function to handle palette updates
-  const handlePaletteChange: React.Dispatch<React.SetStateAction<string[]>> = (
-    newPalette
-  ) => {
-    const resolvedPalette =
-      typeof newPalette === "function"
-        ? newPalette(paletteVariants[activeVariant])
-        : newPalette;
-
-    // Update the base palette
+  // Simplified palette change handler that always updates the base palette
+  const handlePaletteChange = (newPalette: string[] | ((prev: string[]) => string[])) => {
+    const resolvedPalette = typeof newPalette === "function" ? newPalette(palette) : newPalette;
     setPalette(resolvedPalette);
-
-    // Update both variants: set the current variant to the new palette, and regenerate the other
-    if (activeVariant === "light") {
-      setPaletteVariants({
-        light: resolvedPalette,
-        dark: generateDarkVariant(resolvedPalette),
-      });
-    } else {
-      setPaletteVariants({
-        light: generateLightVariant(resolvedPalette),
-        dark: resolvedPalette,
-      });
-    }
   };
 
   return (
@@ -105,14 +84,12 @@ const PaletteAnalyzerDemoPage: React.FC = () => {
           {/* Right Column - Analyzer & Simulations */}
           <div className="lg:col-span-7 space-y-6">
             <PaletteAnalyzer
-              key={`${showVariants}-${activeVariant}-${currentPalette.join(
-                ","
-              )}`}
+              key={`analyzer-${palette.join(",")}`}
               palette={currentPalette}
               setPalette={handlePaletteChange}
             />
             <ColorBlindnessSimulation
-              key={`colorblind-${showVariants}-${activeVariant}-${currentPalette.join(
+              key={`colorblind-${activeVariant}-${currentPalette.join(
                 ","
               )}`}
               palette={currentPalette}

@@ -3,7 +3,6 @@ import { RgbaColorPicker } from "react-colorful";
 import {
   X,
   Plus,
-  Trash2,
   Clipboard,
   Check,
   AlertCircle,
@@ -14,7 +13,6 @@ import {
   cn,
   parseColorsFromText,
   generateQualityRandomPalette,
-  generatePaletteVariants,
   generateDarkVariant,
 } from "../../lib/utils";
 import { useTheme } from "../../contexts/ThemeContext";
@@ -24,10 +22,9 @@ import { Card, CardHeader, CardTitle, CardContent } from "../ui/Card";
 
 interface PaletteEditorProps {
   palette: string[];
-  setPalette: React.Dispatch<React.SetStateAction<string[]>>;
+  setPalette: (palette: string[] | ((prev: string[]) => string[])) => void;
   showVariants?: boolean;
   paletteVariants?: PaletteVariants;
-  setPaletteVariants?: React.Dispatch<React.SetStateAction<PaletteVariants>>;
   activeVariant?: "light" | "dark";
 }
 
@@ -41,7 +38,6 @@ const PaletteEditor: React.FC<PaletteEditorProps> = ({
   setPalette,
   showVariants: externalShowVariants,
   paletteVariants: externalPaletteVariants,
-  setPaletteVariants: externalSetPaletteVariants,
   activeVariant: externalActiveVariant,
 }) => {
   const [activeColorIndex, setActiveColorIndex] = useState<number | null>(null);
@@ -64,30 +60,35 @@ const PaletteEditor: React.FC<PaletteEditorProps> = ({
 
   const showVariants = externalShowVariants ?? internalShowVariants;
   const paletteVariants = externalPaletteVariants ?? internalPaletteVariants;
-  const setPaletteVariants =
-    externalSetPaletteVariants ?? setInternalPaletteVariants;
   const activeVariant = externalActiveVariant ?? internalActiveVariant;
 
   const handleColorChange = (color: string, index: number) => {
-    const newPalette = [...palette];
-    newPalette[index] = color;
-    setPalette(newPalette);
+    setPalette((prevPalette) => {
+      const newPalette = [...prevPalette];
+      newPalette[index] = color;
+      return newPalette;
+    });
   };
 
   const addColor = () => {
-    if (palette.length < 10) {
-      setPalette([...palette, "#CCCCCC"]);
-    }
+    setPalette((prevPalette) => {
+      if (prevPalette.length < 10) {
+        return [...prevPalette, "#CCCCCC"];
+      }
+      return prevPalette;
+    });
   };
 
   const removeColor = (index: number) => {
-    const newPalette = palette.filter((_, i) => i !== index);
-    setPalette(newPalette);
-    if (activeColorIndex === index) {
-      setActiveColorIndex(null);
-    } else if (activeColorIndex !== null && activeColorIndex > index) {
-      setActiveColorIndex(activeColorIndex - 1);
-    }
+    setPalette((prevPalette) => {
+      const newPalette = prevPalette.filter((_, i) => i !== index);
+      if (activeColorIndex === index) {
+        setActiveColorIndex(null);
+      } else if (activeColorIndex !== null && activeColorIndex > index) {
+        setActiveColorIndex(activeColorIndex - 1);
+      }
+      return newPalette;
+    });
   };
 
   const toRgba = (color: string) => {
@@ -105,17 +106,19 @@ const PaletteEditor: React.FC<PaletteEditorProps> = ({
         setTimeout(() => setPasteStatus("idle"), 3000);
         return;
       }
-      const maxNewColors = Math.min(parsedColors.length, 10 - palette.length);
-      const colorsToAdd = parsedColors.slice(0, maxNewColors);
-      const newPalette = [...palette, ...colorsToAdd].slice(0, 10);
-      setPalette(newPalette);
-      setPasteStatus("success");
-      setPasteMessage(
-        `Added ${colorsToAdd.length} color${
-          colorsToAdd.length !== 1 ? "s" : ""
-        } from clipboard`
-      );
-      setTimeout(() => setPasteStatus("idle"), 3000);
+      setPalette((prevPalette) => {
+        const maxNewColors = Math.min(parsedColors.length, 10 - prevPalette.length);
+        const colorsToAdd = parsedColors.slice(0, maxNewColors);
+        const newPalette = [...prevPalette, ...colorsToAdd].slice(0, 10);
+        setPasteStatus("success");
+        setPasteMessage(
+          `Added ${colorsToAdd.length} color${
+            colorsToAdd.length !== 1 ? "s" : ""
+          } from clipboard`
+        );
+        setTimeout(() => setPasteStatus("idle"), 3000);
+        return newPalette;
+      });
     } catch {
       setPasteStatus("error");
       setPasteMessage("Failed to read from clipboard");
@@ -152,26 +155,6 @@ const PaletteEditor: React.FC<PaletteEditorProps> = ({
   const generateGoodPalette = () => {
     const newPalette = generateQualityRandomPalette(5);
     setPalette(newPalette);
-    // Only update variants if we're currently showing variants
-    if (showVariants) {
-      const variants = generatePaletteVariants(newPalette);
-      setPaletteVariants(variants);
-    }
-  };
-
-  const handleVariantColorChange = (
-    color: string,
-    index: number,
-    variant: "light" | "dark"
-  ) => {
-    const newVariants = { ...paletteVariants };
-    newVariants[variant][index] = color;
-    setPaletteVariants(newVariants);
-
-    // Update main palette if editing the light variant
-    if (variant === "light") {
-      setPalette(newVariants.light);
-    }
   };
 
   // Update internal variants when palette changes (if using internal state)
@@ -267,15 +250,7 @@ const PaletteEditor: React.FC<PaletteEditorProps> = ({
                     const newColor = chroma
                       .rgb(color.r, color.g, color.b, color.a)
                       .css();
-                    if (showVariants) {
-                      handleVariantColorChange(
-                        newColor,
-                        activeColorIndex,
-                        activeVariant
-                      );
-                    } else {
-                      handleColorChange(newColor, activeColorIndex);
-                    }
+                    handleColorChange(newColor, activeColorIndex);
                   }}
                 />
                 <input
@@ -283,15 +258,7 @@ const PaletteEditor: React.FC<PaletteEditorProps> = ({
                   className="input w-full"
                   value={currentPalette[activeColorIndex]}
                   onChange={(e) => {
-                    if (showVariants) {
-                      handleVariantColorChange(
-                        e.target.value,
-                        activeColorIndex,
-                        activeVariant
-                      );
-                    } else {
-                      handleColorChange(e.target.value, activeColorIndex);
-                    }
+                    handleColorChange(e.target.value, activeColorIndex);
                   }}
                 />
               </div>
@@ -354,30 +321,7 @@ const PaletteEditor: React.FC<PaletteEditorProps> = ({
               </motion.div>
             )}
           </AnimatePresence>
-
-          <div className="text-xs text-surface-500 dark:text-surface-400 bg-surface-100 dark:bg-surface-800 rounded-lg p-3 mt-1">
-            <p className="font-semibold mb-1">Supported formats:</p>
-            <ul className="ml-2 space-y-0.5">
-              <li>• Hex: #ff0000, #f00, ff0000, f00</li>
-              <li>• RGB: rgb(255, 0, 0)</li>
-              <li>• RGBA: rgba(255, 0, 0, 0.5)</li>
-              <li>• HSL: hsl(0, 100%, 50%)</li>
-              <li>• HSLA: hsla(0, 100%, 50%, 0.5)</li>
-            </ul>
-          </div>
         </div>
-
-        <Button
-          variant="outline"
-          size="sm"
-          fullWidth
-          onClick={() => setPalette([])}
-          disabled={palette.length === 0}
-          className="mt-2"
-        >
-          <Trash2 size={14} className="mr-2" />
-          Clear Palette
-        </Button>
       </CardContent>
     </Card>
   );
